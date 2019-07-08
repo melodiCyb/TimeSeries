@@ -68,7 +68,7 @@ class ForecastRunner(object):
         df['dow'] = df['DOW'].apply(lambda x: dow_avg[x])
         
         df = df.drop(['Year','Month','Week','DOW'], axis=1)
-        start_date = pd.to_datetime('2013-01-7').date()
+        start_date = pd.to_datetime(self.predicted_date).date()
         end_date = start_date + timedelta(days=6)
    
         train = df.loc[df.index.date < start_date]
