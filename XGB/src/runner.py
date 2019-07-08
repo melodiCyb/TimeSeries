@@ -23,16 +23,54 @@ class ForecastRunner(object):
         df_test = test.reset_index()[['Date']]
         prediction = df_test.join(preds)
         prediction.to_csv(self.output_file)
+        
+    @staticmethod
+    def remove_outliers(data, threshold=3.5, fill=False):
+        '''
+        Meadian Absolute Deviation (MAD) based outlier detection 
+        Removes outliers and if selected fills with polynomial  interpolation
+        fill: Boolean 
+        '''
+        median = np.median(data.values, axis=0)
+        diff = np.sum((data.values - median)**2, axis=-1)
+        diff = np.sqrt(diff)
+        med_abs_deviation = np.median(diff)
+        # scale constant 0.6745
+        modified_z_score = 0.6745 * diff / med_abs_deviation
+        data[modified_z_score > threshold] = np.nan
+        
+        if fill:
+            # fill by interpolation
+            data = data.interpolate(method='polynomial', order=2)
+        data = data.dropna()
+        return data
 
-    def prepare_data(self, df):
+
+   def prepare_data(self, df, fill=False):
         df['Date'] = pd.to_datetime(df['Date'])
-        df['Year'] = df['Date'].dt.year
-        df['Month'] = df['Date'].dt.month
-        df['Week'] = df['Date'].dt.week
-        df['DOW'] = df['Date'].dt.weekday  
-        start_date = pd.to_datetime(self.predicted_date).date()
-        end_date = start_date + timedelta(days=6)
         df = df.set_index('Date')
+        # remove outliers 
+        df = ForecastRunner.remove_outliers(df, fill)
+        # get time features
+        df['Year'] = df.index.year
+        df['Month'] = df.index.month
+        df['Week'] = df.index.week
+        df['DOW'] = df.index.weekday
+        
+        # encode time features with the mean of the target variable
+        yearly_avg = dict(df.groupby('Year')['Value'].mean())
+        df['year_avg']= df['Year'].apply(lambda x: yearly_avg[x])
+        monthly_avg = dict(df.groupby('Month')['Value'].mean())
+        df['month_avg']= df['Month'].apply(lambda x: monthly_avg[x])
+        weekly_avg = dict(df.groupby('Week')['Value'].mean())
+        df['week_avg']= df['Week'].apply(lambda x: weekly_avg[x])
+        dow_avg = dict(df.groupby('DOW')['Value'].mean())
+        df['dow'] = df['DOW'].apply(lambda x: dow_avg[x])
+        
+        df = df.drop(['Year','Month','Week','DOW'], axis=1)
+        start_date = pd.to_datetime('2013-01-7').date()
+        end_date = start_date + timedelta(days=6)
+   
         train = df.loc[df.index.date < start_date]
         test = df.loc[(df.index.date >= start_date) & (df.index.date <= end_date)]
         return train, test
@@ -59,8 +97,8 @@ class ForecastRunner(object):
         
     def fit(self):
         """
-        Gets data and preprocess by prepareData() function
-       
+        Gets data and preprocess by prepare_data() function
+        Trains with the selected parameters from grid search and saves the model       
         """
         today = datetime.now().date()
         data = self.get_input()
