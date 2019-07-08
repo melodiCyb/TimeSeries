@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import io
+import requests
 from datetime import datetime, timedelta
 import xgboost as xgb
 import pickle
@@ -8,14 +10,17 @@ import matplotlib.pyplot as plt
 
 
 class ForecastRunner(object):
-    def __init__(self, filename, output_file, predicted_date):
-        self.filename = filename
+    def __init__(self, url, output_file, predicted_date):
+        self.url = url
         self.output_file = output_file
         self.predicted_date = predicted_date
-
-
+   
     def get_input(self):
-        input_data = pd.read_csv(self.filename, index_col=0)
+        s = requests.get(self.url).content
+        df = pd.read_csv(io.StringIO(s.decode('utf-8')), header=1)
+        # sum along 15-min intervals and convert into daily values
+        df['Value'] = df.drop(['Date','Values'], axis=1).sum(axis=1)
+        input_data = df[['Date','Value']]     
         return input_data
 
     def save_output(self, test, preds):
@@ -47,7 +52,7 @@ class ForecastRunner(object):
 
 
    def prepare_data(self, df, fill=False):
-        df['Date'] = pd.to_datetime(df['Date'])
+        df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%Y')
         df = df.set_index('Date')
         # remove outliers 
         df = ForecastRunner.remove_outliers(df, fill)
