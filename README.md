@@ -1,4 +1,4 @@
 # TimeSeries
 
 Vitus Commodities
-* UK Natural Gas Forecasting using SARIMAX
+* UK Natural Gas Consumption Forecasting using SARIMAX
